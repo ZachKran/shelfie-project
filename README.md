@@ -68,7 +68,7 @@ TODO
 
 ## Catalog
 
-`catalog.csv` — TODO entries.
+`catalog.csv` — 123 entries.
 
 | Column | Notes |
 | --- | --- |
