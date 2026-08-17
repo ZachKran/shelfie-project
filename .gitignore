@@ -1,0 +1,17 @@
+
+# Python / Environment
+venv/
+*.pyc
+__pycache__/
+.env
+
+# Database
+*.sqlite3
+
+# Node / Dependencies
+node_modules/
+.expo/
+dist/
+
+# System
+.DS_Store
