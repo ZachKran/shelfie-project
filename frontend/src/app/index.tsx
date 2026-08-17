@@ -1,98 +1,102 @@
-import * as Device from 'expo-device';
-import { Platform, StyleSheet } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
+import { router } from 'expo-router';
+import { useState } from 'react';
+import { Image, ScrollView, StyleSheet, Text, View } from 'react-native';
 
-import { AnimatedIcon } from '@/components/animated-icon';
-import { HintRow } from '@/components/hint-row';
-import { ThemedText } from '@/components/themed-text';
-import { ThemedView } from '@/components/themed-view';
-import { WebBadge } from '@/components/web-badge';
-import { BottomTabInset, MaxContentWidth, Spacing } from '@/constants/theme';
+import { ApiError, BASE_URL, uploadScan } from '@/api/client';
+import { Button, Card, ErrorState } from '@/components/ui-kit';
+import { Spacing } from '@/constants/theme';
+import { useTheme } from '@/hooks/use-theme';
 
-function getDevMenuHint() {
-  if (Platform.OS === 'web') {
-    return <ThemedText type="small">use browser devtools</ThemedText>;
+export default function CaptureScreen() {
+  const theme = useTheme();
+  const [preview, setPreview] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function pick(useCamera: boolean) {
+    setError(null);
+    const permission = useCamera
+      ? await ImagePicker.requestCameraPermissionsAsync()
+      : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!permission.granted) {
+      setError(
+        useCamera
+          ? 'Camera access was denied. You can still choose a photo from your library.'
+          : 'Photo library access was denied.'
+      );
+      return;
+    }
+
+    const result = useCamera
+      ? await ImagePicker.launchCameraAsync({ quality: 0.9 })
+      : await ImagePicker.launchImageLibraryAsync({ quality: 0.9 });
+    if (result.canceled || !result.assets?.length) return;
+
+    const asset = result.assets[0];
+    setPreview(asset.uri);
+    await upload(asset.uri, asset.fileName ?? 'shelf.jpg');
   }
-  if (Device.isDevice) {
-    return (
-      <ThemedText type="small">
-        shake device or press <ThemedText type="code">m</ThemedText> in terminal
-      </ThemedText>
-    );
+
+  async function upload(uri: string, name: string) {
+    setBusy(true);
+    setError(null);
+    try {
+      const scan = await uploadScan(uri, name);
+      router.push({ pathname: '/scan/[id]', params: { id: String(scan.id) } });
+    } catch (err) {
+      // The photo stays on screen so a retry does not mean taking it again.
+      setError(err instanceof ApiError ? err.message : 'The scan could not be uploaded.');
+    } finally {
+      setBusy(false);
+    }
   }
-  const shortcut = Platform.OS === 'android' ? 'cmd+m (or ctrl+m)' : 'cmd+d';
+
   return (
-    <ThemedText type="small">
-      press <ThemedText type="code">{shortcut}</ThemedText>
-    </ThemedText>
-  );
-}
+    <ScrollView contentContainerStyle={styles.container}>
+      <Text style={[styles.title, { color: theme.text }]}>Scan a bookshelf</Text>
+      <Text style={[styles.body, { color: theme.textSecondary }]}>
+        Take a photo of a shelf and Shelfie will pull out the individual books, read the
+        spines, and match them against the catalog. Anything it is unsure about comes to
+        you before it is saved.
+      </Text>
 
-export default function HomeScreen() {
-  return (
-    <ThemedView style={styles.container}>
-      <SafeAreaView style={styles.safeArea}>
-        <ThemedView style={styles.heroSection}>
-          <AnimatedIcon />
-          <ThemedText type="title" style={styles.title}>
-            Welcome to&nbsp;Expo
-          </ThemedText>
-        </ThemedView>
+      {preview ? <Image source={{ uri: preview }} style={styles.preview} resizeMode="cover" /> : null}
 
-        <ThemedText type="code" style={styles.code}>
-          get started
-        </ThemedText>
+      <View style={styles.actions}>
+        <Button label="Take a photo" onPress={() => pick(true)} busy={busy} />
+        <Button label="Choose from library" variant="secondary" onPress={() => pick(false)} busy={busy} />
+      </View>
 
-        <ThemedView type="backgroundElement" style={styles.stepContainer}>
-          <HintRow
-            title="Try editing"
-            hint={<ThemedText type="code">src/app/index.tsx</ThemedText>}
+      {busy ? (
+        <Text style={[styles.hint, { color: theme.textSecondary }]}>
+          Detecting spines and reading them. A full shelf takes a little while.
+        </Text>
+      ) : null}
+
+      {error ? (
+        <Card>
+          <ErrorState
+            message={error}
+            onRetry={preview ? () => upload(preview, 'shelf.jpg') : undefined}
           />
-          <HintRow title="Dev tools" hint={getDevMenuHint()} />
-          <HintRow
-            title="Fresh start"
-            hint={<ThemedText type="code">npm run reset-project</ThemedText>}
-          />
-        </ThemedView>
+        </Card>
+      ) : null}
 
-        {Platform.OS === 'web' && <WebBadge />}
-      </SafeAreaView>
-    </ThemedView>
+      <View style={styles.footer}>
+        <Button label="My library" variant="secondary" onPress={() => router.push('/library')} />
+        <Text style={[styles.hint, { color: theme.textSecondary }]}>Server: {BASE_URL}</Text>
+      </View>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    flexDirection: 'row',
-  },
-  safeArea: {
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    alignItems: 'center',
-    gap: Spacing.three,
-    paddingBottom: BottomTabInset + Spacing.three,
-    maxWidth: MaxContentWidth,
-  },
-  heroSection: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    flex: 1,
-    paddingHorizontal: Spacing.four,
-    gap: Spacing.four,
-  },
-  title: {
-    textAlign: 'center',
-  },
-  code: {
-    textTransform: 'uppercase',
-  },
-  stepContainer: {
-    gap: Spacing.three,
-    alignSelf: 'stretch',
-    paddingHorizontal: Spacing.three,
-    paddingVertical: Spacing.four,
-    borderRadius: Spacing.four,
-  },
+  container: { padding: Spacing.four, gap: Spacing.three, maxWidth: 640, width: '100%', alignSelf: 'center' },
+  title: { fontSize: 26, fontWeight: '700' },
+  body: { fontSize: 15, lineHeight: 21 },
+  preview: { width: '100%', height: 260, borderRadius: 12 },
+  actions: { gap: Spacing.two },
+  footer: { marginTop: Spacing.four, gap: Spacing.two },
+  hint: { fontSize: 13, textAlign: 'center' },
 });

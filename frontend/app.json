@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "frontend",
+    "name": "Shelfie",
     "slug": "frontend",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -31,6 +31,13 @@
           "backgroundColor": "#208AEF",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 76
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Shelfie needs access to your photos so you can pick a shelf photo to scan.",
+          "cameraPermission": "Shelfie needs the camera so you can photograph a bookshelf."
         }
       ]
     ],
