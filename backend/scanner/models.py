@@ -30,11 +30,13 @@ class ScanItem(models.Model):
     REVIEW = "review"
     UNMATCHED = "unmatched"
     UNREADABLE = "unreadable"
+    SKIPPED = "skipped"
     STATUS_CHOICES = [
         (MATCHED, "Matched"),
         (REVIEW, "Needs review"),
         (UNMATCHED, "No catalog match"),
         (UNREADABLE, "Could not be read"),
+        (SKIPPED, "Skipped to stay within the per-scan limit"),
     ]
 
     scan = models.ForeignKey(Scan, related_name="items", on_delete=models.CASCADE)

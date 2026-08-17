@@ -61,9 +61,23 @@ def run_pipeline(scan: Scan) -> Scan:
         detection.crop_spine(image_path, det.box, out)
         crop_paths.append(out)
 
-    # 3. Read, hosted.
+    # 3. Read, hosted. This is the only step that costs money, so it is the
+    # only step with a ceiling on it.
+    limit = settings.SHELFIE["VLM_MAX_SPINES"]
+    to_read, deferred = crop_paths[:limit], crop_paths[limit:]
+    if deferred:
+        logger.info(
+            "scan %s: reading %s of %s spines (VLM_MAX_SPINES=%s)",
+            scan.pk, len(to_read), len(crop_paths), limit,
+        )
     t0 = time.perf_counter()
-    reads, usage = vlm.read_spines(crop_paths)
+    reads, usage = vlm.read_spines(to_read)
+    # Spines past the ceiling are still returned to the user, marked skipped,
+    # so the cap is visible rather than a silent truncation.
+    reads.extend(
+        vlm.SpineRead(index=len(to_read) + i, error="skipped: per-scan read limit reached")
+        for i in range(len(deferred))
+    )
     scan.vlm_ms = int((time.perf_counter() - t0) * 1000)
     scan.vlm_input_tokens = usage["input_tokens"]
     scan.vlm_output_tokens = usage["output_tokens"]
@@ -84,7 +98,10 @@ def run_pipeline(scan: Scan) -> Scan:
         )
         if not read.is_readable:
             # Kept in the scan so the user sees the crop and can type it in.
-            item.status = ScanItem.UNREADABLE
+            item.status = (
+                ScanItem.SKIPPED if read.error.startswith("skipped:")
+                else ScanItem.UNREADABLE
+            )
             item.confidence = 0.0
         else:
             result = matcher.match(read.title, read.author)

@@ -163,6 +163,9 @@ SHELFIE = {
     "VLM_TIMEOUT_SECONDS": float(os.getenv("VLM_TIMEOUT_SECONDS", 30)),
     "VLM_MAX_RETRIES": int(os.getenv("VLM_MAX_RETRIES", 2)),
     "VLM_BATCH_SIZE": int(os.getenv("VLM_BATCH_SIZE", 6)),
+    # Hard ceiling on paid reads per photo. Spines past this are surfaced as
+    # skipped rather than read, so a wall-sized shelf cannot run up a bill.
+    "VLM_MAX_SPINES": int(os.getenv("VLM_MAX_SPINES", 60)),
     "DETECTOR_WEIGHTS": os.getenv("DETECTOR_WEIGHTS", "yolov8n.pt"),
     "DETECTOR_IMGSZ": int(os.getenv("DETECTOR_IMGSZ", 960)),
     "DETECTOR_CONFIDENCE": float(os.getenv("DETECTOR_CONFIDENCE", 0.15)),

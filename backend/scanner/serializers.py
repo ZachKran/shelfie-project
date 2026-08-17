@@ -42,7 +42,7 @@ class ScanSerializer(serializers.ModelSerializer):
         }
 
     def get_counts(self, obj):
-        counts = {"matched": 0, "review": 0, "unmatched": 0, "unreadable": 0}
+        counts = {"matched": 0, "review": 0, "unmatched": 0, "unreadable": 0, "skipped": 0}
         for item in obj.items.all():
             counts[item.status] = counts.get(item.status, 0) + 1
         return counts
