@@ -125,3 +125,47 @@ MAILERS = {
         'BACKEND': 'django.core.mail.backends.console.EmailBackend',
     },
 }
+
+
+# ---------------------------------------------------------------------------
+# Shelfie
+# ---------------------------------------------------------------------------
+import os
+from dotenv import load_dotenv
+
+load_dotenv(BASE_DIR / ".env")
+
+INSTALLED_APPS += [
+    "rest_framework",
+    "corsheaders",
+    "scanner",
+]
+
+MIDDLEWARE.insert(0, "corsheaders.middleware.CorsMiddleware")
+
+# Dev only: the Expo client runs on a different origin (and on a phone).
+CORS_ALLOW_ALL_ORIGINS = True
+ALLOWED_HOSTS = ["*"]
+
+MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = "/media/"
+
+REST_FRAMEWORK = {
+    "DEFAULT_RENDERER_CLASSES": ["rest_framework.renderers.JSONRenderer"],
+}
+
+# Repo root, so catalog.csv sits beside the README rather than inside backend/.
+REPO_ROOT = BASE_DIR.parent
+CATALOG_PATH = REPO_ROOT / "catalog.csv"
+
+SHELFIE = {
+    "VLM_MODEL": os.getenv("VLM_MODEL", "claude-sonnet-4-5"),
+    "VLM_TIMEOUT_SECONDS": float(os.getenv("VLM_TIMEOUT_SECONDS", 30)),
+    "VLM_MAX_RETRIES": int(os.getenv("VLM_MAX_RETRIES", 2)),
+    "VLM_BATCH_SIZE": int(os.getenv("VLM_BATCH_SIZE", 6)),
+    "DETECTOR_WEIGHTS": os.getenv("DETECTOR_WEIGHTS", "yolov8n.pt"),
+    "DETECTOR_IMGSZ": int(os.getenv("DETECTOR_IMGSZ", 960)),
+    "DETECTOR_CONFIDENCE": float(os.getenv("DETECTOR_CONFIDENCE", 0.15)),
+    "MATCH_THRESHOLD": float(os.getenv("MATCH_THRESHOLD", 0.85)),
+    "REVIEW_THRESHOLD": float(os.getenv("REVIEW_THRESHOLD", 0.55)),
+}

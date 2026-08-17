@@ -15,3 +15,8 @@ dist/
 
 # System
 .DS_Store
+
+# Shelfie
+backend/media/
+*.pt
+.pytest_cache/
