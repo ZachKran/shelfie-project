@@ -169,3 +169,23 @@ def test_search_backs_manual_correction(matcher):
     results = matcher.search("hobbit")
     assert results
     assert results[0].entry.id.startswith("hobbit")
+
+
+# --- books that are simply not in the catalog ------------------------------
+
+def test_shared_stopwords_do_not_create_a_match(matcher):
+    """Read off a real shelf: the book is not in the catalog, and "of the"
+    should not be enough to pair it with The Lord of the Rings."""
+    result = matcher.match("Song of the Sun God", "Shankari Chandran")
+    assert result.status == "unmatched"
+    assert result.match_id is None
+
+
+def test_unknown_book_with_a_common_noun_is_unmatched(matcher):
+    result = matcher.match("The Teahouse Fire", "Ellis Avery")
+    assert result.status == "unmatched"
+
+
+def test_author_only_read_does_not_force_a_title_match(matcher):
+    result = matcher.match("", "Philippa Gregory")
+    assert result.status == "unmatched"

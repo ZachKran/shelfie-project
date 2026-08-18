@@ -20,6 +20,13 @@ ARTICLES = ("the ", "a ", "an ")
 
 # Apostrophes are deleted rather than replaced with a space, so "hitchhiker's"
 # normalizes to "hitchhikers" and not "hitchhiker s".
+# Words that carry no identity. Two titles sharing only these are not similar,
+# however well a character-level ratio scores them.
+STOPWORDS = frozenset(
+    "the a an of and or in on to for with at by from de la le el il"
+    .split()
+)
+
 _APOSTROPHE = re.compile(r"['\u2018\u2019\u02bc]")
 _PUNCT = re.compile(r"[^\w\s]", re.UNICODE)
 _WS = re.compile(r"\s+")
@@ -133,6 +140,26 @@ def load_catalog(path: str | Path) -> list[CatalogEntry]:
     return entries
 
 
+def content_tokens(norm: str) -> list[str]:
+    return [t for t in norm.split() if t not in STOPWORDS]
+
+
+def shares_content(left: list[str], right: list[str]) -> bool:
+    """True if any meaningful word matches, allowing for OCR noise.
+
+    Fuzzy rather than exact so a misread short title ("Emmma" for "Emma")
+    is not treated as having nothing in common.
+    """
+    if not left or not right:
+        # One side is entirely stopwords; the gate cannot say anything useful.
+        return True
+    for a in left:
+        for b in right:
+            if a == b or fuzz.ratio(a, b) >= 80:
+                return True
+    return False
+
+
 @dataclass
 class Candidate:
     entry: CatalogEntry
@@ -176,6 +203,13 @@ class MatchResult:
 # Weights. Title carries more than author because spines show the title larger
 # and the VLM reads it more reliably; author is the tiebreaker that separates
 # two different books sharing a title.
+# A title whose meaningful words have nothing in common with a candidate is
+# capped here, no matter what the fuzzy ratio says. Without this, "Song of the
+# Sun God" scores 0.72 against "The Lord of the Rings" on the strength of "of
+# the", and books that are simply not in the catalog surface as review
+# candidates instead of being reported as unmatched.
+NO_CONTENT_OVERLAP_CAP = 0.45
+
 TITLE_WEIGHT = 0.65
 AUTHOR_WEIGHT = 0.35
 # Applied when the spine gave a title but no author: the match cannot be
@@ -229,6 +263,7 @@ class Matcher:
     @staticmethod
     def _title_score(norm_title: str, entry: CatalogEntry) -> float:
         best = 0.0
+        read_content = content_tokens(norm_title)
         for cand in entry.norm_titles:
             score = max(
                 fuzz.ratio(norm_title, cand),
@@ -244,6 +279,8 @@ class Matcher:
                 # word, not a genuinely shorter title, so no penalty applies.
                 if coverage < 0.85:
                     score = min(score, 0.50 + 0.35 * coverage)
+            if not shares_content(read_content, content_tokens(cand)):
+                score = min(score, NO_CONTENT_OVERLAP_CAP)
             best = max(best, score)
         return best
 
