@@ -165,10 +165,10 @@ SHELFIE = {
     "VLM_BATCH_SIZE": int(os.getenv("VLM_BATCH_SIZE", 6)),
     # Hard ceiling on paid reads per photo. Spines past this are surfaced as
     # skipped rather than read, so a wall-sized shelf cannot run up a bill.
-    "VLM_MAX_SPINES": int(os.getenv("VLM_MAX_SPINES", 60)),
+    "VLM_MAX_SPINES": int(os.getenv("VLM_MAX_SPINES", 200)),
     "DETECTOR_WEIGHTS": os.getenv("DETECTOR_WEIGHTS", "yolov8n.pt"),
     "DETECTOR_IMGSZ": int(os.getenv("DETECTOR_IMGSZ", 960)),
-    "DETECTOR_CONFIDENCE": float(os.getenv("DETECTOR_CONFIDENCE", 0.20)),
+    "DETECTOR_CONFIDENCE": float(os.getenv("DETECTOR_CONFIDENCE", 0.22)),
     # Short-edge pixels a spine crop is upscaled to before it is sent.
     "CROP_MIN_HEIGHT": int(os.getenv("CROP_MIN_HEIGHT", 220)),
     "MATCH_THRESHOLD": float(os.getenv("MATCH_THRESHOLD", 0.85)),

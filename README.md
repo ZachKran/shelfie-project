@@ -246,7 +246,7 @@ of roughly that many books, in 3.5 s on CPU. Grounding DINO or OWL-ViT prompted 
 would fit the task better semantically but costs seconds per image. Measured
 first, then chose.
 
-**Confidence 0.20, from a sweep run twice.** The first sweep used only photos
+**Confidence 0.22, from a sweep run twice.** The first sweep used only photos
 of upright books and 0.25 looked right — it was where the curve bends
 (shelf2: 0.15 → 98 boxes, 0.20 → 93, 0.25 → 82, 0.30 → 78, 0.35 → 70). Adding
 a photo containing stacked books changed the answer, because flat books sit
@@ -259,7 +259,7 @@ lower in the detector's confidence distribution:
 | 0.15 | 98 | 61 | 17 |
 | 0.12 | 102 | 68 | 20 |
 
-0.20 was chosen as the balance: it recovers most of the stacked books without
+0.22 was chosen as the balance: it recovers most of the stacked books without
 the fragment boxes that appear lower down.
 
 **Crop rotation was the single biggest quality lever.** Rotated the wrong way,
@@ -283,8 +283,10 @@ scope for the time budget.
 
 ## Unfinished
 
-- **Stacked-book coverage is good, not complete.** 14 of roughly 20 flat books
-  in `shelf3.jpeg` are detected at 0.20. Crops of stacked books often include
+- **Stacked books are detected, but coverage varies with the threshold.**
+  `shelf3.jpeg` yields 12 flat boxes at 0.22, 14 at 0.20 and 10 at 0.25, out of
+  52 boxes total. The misses are books deep in a stack where only a sliver of
+  spine is visible. Crops of stacked books often include
   the neighbours above and below, since the boxes overlap vertically; the
   prompt asks for the middle book, which mostly works.
 - **The review screen has three competing ways to pick a book** — ranked
