@@ -48,6 +48,38 @@ class ScanSerializer(serializers.ModelSerializer):
         return counts
 
 
+class ScanSummarySerializer(serializers.ModelSerializer):
+    """Lightweight shape for the scan list. Omits items, which are large."""
+
+    counts = serializers.SerializerMethodField()
+    pending = serializers.SerializerMethodField()
+    image_url = serializers.SerializerMethodField()
+
+    class Meta:
+        model = Scan
+        fields = ["id", "created_at", "error", "counts", "pending", "image_url"]
+
+    def get_counts(self, obj):
+        counts = {"matched": 0, "review": 0, "unmatched": 0, "unreadable": 0, "skipped": 0}
+        for item in obj.items.all():
+            counts[item.status] = counts.get(item.status, 0) + 1
+        return counts
+
+    def get_pending(self, obj):
+        """How many books still need a decision. This is what makes an
+        unfinished scan findable again instead of stranded."""
+        return sum(
+            1 for item in obj.items.all()
+            if item.status != ScanItem.MATCHED and not item.resolved
+        )
+
+    def get_image_url(self, obj):
+        if not obj.image:
+            return None
+        request = self.context.get("request")
+        return request.build_absolute_uri(obj.image.url) if request else obj.image.url
+
+
 class LibraryBookSerializer(serializers.ModelSerializer):
     class Meta:
         model = LibraryBook

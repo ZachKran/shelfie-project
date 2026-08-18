@@ -10,7 +10,12 @@ from rest_framework.response import Response
 from . import detection, vlm
 from .matching import Matcher, load_catalog
 from .models import LibraryBook, Scan, ScanItem
-from .serializers import LibraryBookSerializer, ScanItemSerializer, ScanSerializer
+from .serializers import (
+    LibraryBookSerializer,
+    ScanItemSerializer,
+    ScanSerializer,
+    ScanSummarySerializer,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -117,8 +122,15 @@ def run_pipeline(scan: Scan) -> Scan:
 
 
 class ScanListCreateView(generics.ListCreateAPIView):
-    queryset = Scan.objects.all().prefetch_related("items")
+    queryset = Scan.objects.all().prefetch_related("items").order_by("-created_at")
     serializer_class = ScanSerializer
+
+    def get_serializer_class(self):
+        # Listing every scan with every item and its candidates would be a very
+        # large payload; the list only needs counts.
+        if self.request.method == "GET":
+            return ScanSummarySerializer
+        return ScanSerializer
 
     def create(self, request, *args, **kwargs):
         if "image" not in request.FILES:
