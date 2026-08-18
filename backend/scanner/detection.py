@@ -22,9 +22,16 @@ _model = None
 # the aspect-ratio filter below drops the shelf-sized boxes it sometimes emits.
 BOOK_CLASS_ID = 73
 
-# A spine is taller than it is wide. Anything wider than this is a shelf or a
-# stack, not a single book.
-MAX_ASPECT_RATIO = 1.2
+# Books lying flat are in scope, so a wide box is not disqualifying on its own.
+# What still has to be rejected is the shelf-wide box the detector emits per
+# row. Those are separated from genuine flat books by two things rather than by
+# orientation: they are extremely elongated, and they swallow other boxes
+# (handled in suppress_overlaps).
+MAX_ASPECT_RATIO = 6.0
+
+# A single book, upright or flat, is not many times larger than its neighbours.
+# A box this much bigger than the median is a shelf.
+MAX_AREA_RATIO = 6.0
 
 # A box that swallows this many other boxes is a shelf, not a book. The
 # detector reliably emits one of these per shelf alongside the real spines,
@@ -157,6 +164,22 @@ def suppress_overlaps(detections: list[Detection]) -> list[Detection]:
     return deduped
 
 
+def drop_oversized(detections: list[Detection]) -> list[Detection]:
+    """Remove boxes far larger than a typical book in the same photo.
+
+    Scale is relative rather than absolute so it holds whether the photo is of
+    one shelf or a whole bookcase.
+    """
+    if len(detections) < 4:
+        return detections
+    areas = sorted(_area(d.box) for d in detections)
+    median = areas[len(areas) // 2] or 1
+    kept = [d for d in detections if _area(d.box) <= MAX_AREA_RATIO * median]
+    if len(kept) != len(detections):
+        logger.info("dropped %s oversized boxes", len(detections) - len(kept))
+    return kept
+
+
 def detect_spines(image_path: str | Path) -> list[Detection]:
     """Return one Detection per book spine found. May legitimately be empty."""
     model = get_model()
@@ -176,6 +199,8 @@ def detect_spines(image_path: str | Path) -> list[Detection]:
             continue
         x1, y1, x2, y2 = (int(v) for v in box.xyxy[0].tolist())
         width, height = max(x2 - x1, 1), max(y2 - y1, 1)
+        # Only the wide direction is capped. A tall thin box is a narrow book,
+        # which is common; a very wide box is a shelf, which is not a book.
         if width / height > MAX_ASPECT_RATIO:
             continue
         detections.append(
@@ -184,6 +209,7 @@ def detect_spines(image_path: str | Path) -> list[Detection]:
 
     before = len(detections)
     detections = suppress_overlaps(detections)
+    detections = drop_oversized(detections)
     if before != len(detections):
         logger.info("suppressed %s overlapping boxes", before - len(detections))
 
@@ -212,6 +238,8 @@ def crop_spine(image_path: str | Path, box: tuple[int, int, int, int], out_path:
         # single biggest quality lever in the pipeline: rotated the wrong way,
         # reads came back as anagram-like garbage ("DAVID BALDACCI" was read as
         # "BRIGGSAM"); rotated correctly they are clean.
+        # Only upright spines need rotating. A book lying flat already reads
+        # left to right, and rotating it would make it unreadable.
         if crop.height > crop.width:
             crop = crop.rotate(90, expand=True)
 
