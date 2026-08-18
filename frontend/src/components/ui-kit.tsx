@@ -1,7 +1,7 @@
 /** Small shared pieces so the four screens look like one app. */
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from 'react-native';
 
-import { Spacing } from '@/constants/theme';
+import { Accent, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 export function Button({
@@ -19,8 +19,12 @@ export function Button({
 }) {
   const theme = useTheme();
   const background =
-    variant === 'primary' ? '#2563EB' : variant === 'danger' ? '#B91C1C' : theme.backgroundElement;
-  const color = variant === 'secondary' ? theme.text : '#FFFFFF';
+    variant === 'primary'
+      ? Accent.primary
+      : variant === 'danger'
+        ? Accent.danger
+        : theme.backgroundElement;
+  const color = variant === 'secondary' ? theme.text : Accent.primaryText;
   return (
     <Pressable
       accessibilityRole="button"
@@ -99,7 +103,7 @@ const styles = StyleSheet.create({
     minHeight: 48,
   },
   buttonText: { fontSize: 16, fontWeight: '600' },
-  card: { borderRadius: 12, padding: Spacing.three, gap: Spacing.two },
+  card: { borderRadius: 12, padding: Spacing.three, gap: Spacing.two, borderWidth: 1, borderColor: Accent.border },
   pill: { paddingHorizontal: 10, paddingVertical: 3, borderRadius: 999, alignSelf: 'flex-start' },
   pillText: { color: '#FFFFFF', fontSize: 12, fontWeight: '700' },
   state: { padding: Spacing.four, gap: Spacing.three, alignItems: 'center', justifyContent: 'center', flex: 1 },

@@ -12,15 +12,17 @@ import {
 } from '@/api/client';
 import { Button, Card, EmptyState, ErrorState, Loading, Pill } from '@/components/ui-kit';
 import { STATUS_META } from '@/constants/status';
-import { Spacing } from '@/constants/theme';
+import { Accent, Spacing } from '@/constants/theme';
 import { useTheme } from '@/hooks/use-theme';
 
 /**
  * The review queue. One book at a time, because the decision is per book and a
  * long scrolling list invites bulk-accepting things the model got wrong.
  *
- * Every item leaves this screen through an explicit choice: confirm, correct,
- * or discard. Nothing is auto-accepted and nothing is dropped on the floor.
+ * There are exactly two ways to save: pick a catalog entry, or type the book
+ * yourself. Each has its own button, so choosing one never quietly undoes the
+ * other. Every item leaves this screen through an explicit choice, and an
+ * unfinished queue stays reachable from Your scans.
  */
 export default function ReviewScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -29,7 +31,7 @@ export default function ReviewScreen() {
   const [scan, setScan] = useState<Scan | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [cursor, setCursor] = useState(0);
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState<'catalog' | 'manual' | 'discard' | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<Candidate[]>([]);
@@ -57,7 +59,6 @@ export default function ReviewScreen() {
   const item = queue[cursor];
 
   useEffect(() => {
-    // Reset the per-item working state whenever the queue moves on.
     setSelected(item?.match_id || item?.candidates[0]?.id || null);
     setQuery('');
     setResults([]);
@@ -79,24 +80,35 @@ export default function ReviewScreen() {
     }
   }
 
-  async function act(action: 'confirm' | 'correct' | 'discard') {
+  async function save(kind: 'catalog' | 'manual' | 'discard') {
     if (!item) return;
-    setBusy(true);
+    setBusy(kind);
     setError(null);
     try {
-      const payload =
-        action === 'correct'
-          ? selected
-            ? { catalog_id: selected }
-            : { title: manualTitle.trim(), author: manualAuthor.trim() }
-          : {};
-      const result = await resolveItem(item.id, action, payload);
-      if (result.already_in_library) {
-        setNotice(`${result.book?.title} was already in your library.`);
-      } else {
+      if (kind === 'discard') {
+        await resolveItem(item.id, 'discard');
         setNotice(null);
+      } else if (kind === 'catalog' && selected) {
+        // "confirm" when the user agrees with the matcher, "correct" when they
+        // picked something else. The distinction is recorded on the book.
+        const action = selected === item.match_id ? 'confirm' : 'correct';
+        const result = await resolveItem(item.id, action, { catalog_id: selected });
+        setNotice(
+          result.already_in_library
+            ? `${result.book?.title} was already in your library.`
+            : `Saved ${result.book?.title}.`
+        );
+      } else if (kind === 'manual') {
+        const result = await resolveItem(item.id, 'correct', {
+          title: manualTitle.trim(),
+          author: manualAuthor.trim(),
+        });
+        setNotice(
+          result.already_in_library
+            ? `${result.book?.title} was already in your library.`
+            : `Saved ${result.book?.title}.`
+        );
       }
-      // Advance locally so the queue does not jump around under the user.
       setScan((prev) =>
         prev
           ? {
@@ -109,7 +121,7 @@ export default function ReviewScreen() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'That did not save. Try again.');
     } finally {
-      setBusy(false);
+      setBusy(null);
     }
   }
 
@@ -120,11 +132,11 @@ export default function ReviewScreen() {
     return (
       <EmptyState
         title="Review complete"
-        body="Every book from this scan has been confirmed, corrected, or discarded."
+        body="Every book from this scan has been saved or discarded."
         action={
           <>
             <Button label="See my library" onPress={() => router.push('/library')} />
-            <Button label="Scan another shelf" variant="secondary" onPress={() => router.replace('/')} />
+            <Button label="Your scans" variant="secondary" onPress={() => router.push('/scans')} />
           </>
         }
       />
@@ -132,7 +144,8 @@ export default function ReviewScreen() {
   }
 
   const meta = STATUS_META[item.status];
-  const canConfirm = item.status === 'review' && !!item.match_id;
+  const selectedCandidate =
+    [...item.candidates, ...results].find((c) => c.id === selected) ?? null;
 
   return (
     <ScrollView contentContainerStyle={styles.container}>
@@ -149,7 +162,9 @@ export default function ReviewScreen() {
         <Text style={[styles.readLabel, { color: theme.textSecondary }]}>Read from the spine</Text>
         {item.read_title || item.read_author ? (
           <>
-            <Text style={[styles.readTitle, { color: theme.text }]}>{item.read_title || '(no title)'}</Text>
+            <Text style={[styles.readTitle, { color: theme.text }]}>
+              {item.read_title || '(no title)'}
+            </Text>
             <Text style={[styles.readAuthor, { color: theme.textSecondary }]}>
               {item.read_author || '(no author)'}
             </Text>
@@ -161,28 +176,30 @@ export default function ReviewScreen() {
         )}
       </Card>
 
-      {item.candidates.length > 0 ? (
-        <View style={styles.section}>
-          <Text style={[styles.sectionTitle, { color: theme.text }]}>Catalog matches</Text>
-          {item.candidates.map((candidate) => (
-            <CandidateRow
-              key={candidate.id}
-              candidate={candidate}
-              selected={selected === candidate.id}
-              onPress={() => setSelected(candidate.id)}
-            />
-          ))}
-        </View>
-      ) : null}
-
+      {/* --- Path one: pick a book from the catalog --- */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Search the catalog</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+          {item.candidates.length > 0 ? 'Pick from the catalog' : 'Search the catalog'}
+        </Text>
+
+        {item.candidates.map((candidate) => (
+          <CandidateRow
+            key={candidate.id}
+            candidate={candidate}
+            selected={selected === candidate.id}
+            onPress={() => setSelected(candidate.id)}
+          />
+        ))}
+
         <TextInput
           value={query}
           onChangeText={runSearch}
-          placeholder="Title or author"
+          placeholder="Search by title or author"
           placeholderTextColor={theme.textSecondary}
-          style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
+          style={[
+            styles.input,
+            { color: theme.text, backgroundColor: theme.backgroundElement },
+          ]}
           autoCorrect={false}
         />
         {results.map((candidate) => (
@@ -193,16 +210,27 @@ export default function ReviewScreen() {
             onPress={() => setSelected(candidate.id)}
           />
         ))}
+
+        <Button
+          label={
+            selectedCandidate
+              ? `Save "${selectedCandidate.title}"`
+              : 'Select a book above to save it'
+          }
+          onPress={() => save('catalog')}
+          busy={busy === 'catalog'}
+          disabled={!selected}
+        />
       </View>
 
+      {/* --- Path two: type it yourself --- */}
       <View style={styles.section}>
-        <Text style={[styles.sectionTitle, { color: theme.text }]}>Or type it yourself</Text>
+        <Text style={[styles.sectionTitle, { color: theme.text }]}>
+          Not in the catalog? Type it yourself
+        </Text>
         <TextInput
           value={manualTitle}
-          onChangeText={(text) => {
-            setManualTitle(text);
-            setSelected(null);
-          }}
+          onChangeText={setManualTitle}
           placeholder="Title"
           placeholderTextColor={theme.textSecondary}
           style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
@@ -214,23 +242,24 @@ export default function ReviewScreen() {
           placeholderTextColor={theme.textSecondary}
           style={[styles.input, { color: theme.text, backgroundColor: theme.backgroundElement }]}
         />
+        <Button
+          label="Save what I typed"
+          onPress={() => save('manual')}
+          busy={busy === 'manual'}
+          disabled={!manualTitle.trim()}
+        />
       </View>
 
       {notice ? <Text style={[styles.notice, { color: theme.textSecondary }]}>{notice}</Text> : null}
       {error ? <Text style={styles.inlineError}>{error}</Text> : null}
 
-      <View style={styles.actions}>
-        {canConfirm ? (
-          <Button label="Confirm this match" onPress={() => act('confirm')} busy={busy} />
-        ) : null}
+      <View style={styles.section}>
         <Button
-          label="Save selection"
-          variant={canConfirm ? 'secondary' : 'primary'}
-          onPress={() => act('correct')}
-          busy={busy}
-          disabled={!selected && !manualTitle.trim()}
+          label="Not a book, discard"
+          variant="danger"
+          onPress={() => save('discard')}
+          busy={busy === 'discard'}
         />
-        <Button label="Not a book, discard" variant="danger" onPress={() => act('discard')} busy={busy} />
         {queue.length > 1 ? (
           <Button
             label="Skip for now"
@@ -260,7 +289,7 @@ function CandidateRow({
         styles.candidate,
         {
           backgroundColor: selected ? theme.backgroundSelected : theme.backgroundElement,
-          borderColor: selected ? '#2563EB' : 'transparent',
+          borderColor: selected ? Accent.primary : 'transparent',
         },
       ]}>
       <View style={styles.candidateBody}>
@@ -279,7 +308,7 @@ function CandidateRow({
 }
 
 const styles = StyleSheet.create({
-  container: { padding: Spacing.three, gap: Spacing.three, maxWidth: 640, width: '100%', alignSelf: 'center' },
+  container: { padding: Spacing.three, gap: Spacing.four, maxWidth: 640, width: '100%', alignSelf: 'center' },
   progress: { fontSize: 13, textAlign: 'center' },
   crop: { width: '100%', height: 130, borderRadius: 8 },
   readLabel: { fontSize: 12, textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -299,7 +328,6 @@ const styles = StyleSheet.create({
   candidateBody: { flex: 1 },
   candidateTitle: { fontSize: 15, fontWeight: '600' },
   candidateMeta: { fontSize: 13 },
-  actions: { gap: Spacing.two, marginTop: Spacing.two },
   notice: { fontSize: 14 },
-  inlineError: { color: '#B91C1C', fontSize: 14 },
+  inlineError: { color: Accent.danger, fontSize: 14 },
 });

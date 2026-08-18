@@ -84,6 +84,11 @@ export default function CaptureScreen() {
       ) : null}
 
       <View style={styles.footer}>
+        <Button
+          label="Scans to review"
+          variant="secondary"
+          onPress={() => router.push('/scans')}
+        />
         <Button label="My library" variant="secondary" onPress={() => router.push('/library')} />
         <Text style={[styles.hint, { color: theme.textSecondary }]}>Server: {BASE_URL}</Text>
       </View>

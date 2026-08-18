@@ -120,7 +120,19 @@ export async function uploadScan(uri: string, fileName = 'shelf.jpg'): Promise<S
   return request<Scan>('/api/scans/', { method: 'POST', body: form });
 }
 
+export type ScanSummary = {
+  id: number;
+  created_at: string;
+  error: string;
+  counts: Record<ScanStatus, number>;
+  /** Books from this scan that still need a decision. */
+  pending: number;
+  image_url: string | null;
+};
+
 export const getScan = (id: number | string) => request<Scan>(`/api/scans/${id}/`);
+
+export const listScans = () => request<ScanSummary[]>('/api/scans/');
 
 export const getLibrary = () => request<LibraryBook[]>('/api/library/');
 
