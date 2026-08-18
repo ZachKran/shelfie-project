@@ -124,7 +124,14 @@ export default function ScanResultsScreen() {
         </View>
       }
       renderItem={({ item }) => <ResultRow item={item} />}
-      ListFooterComponent={<Timings scan={scan} />}
+      ListFooterComponent={
+        <View style={styles.footer}>
+          <Timings scan={scan} />
+          <Button label="My library" variant="secondary" onPress={() => router.push('/library')} />
+          <Button label="Your scans" variant="secondary" onPress={() => router.push('/scans')} />
+          <Button label="Scan another shelf" variant="secondary" onPress={() => router.replace('/')} />
+        </View>
+      }
     />
   );
 }
@@ -195,4 +202,5 @@ const styles = StyleSheet.create({
   rowTitle: { fontSize: 15, fontWeight: '600' },
   rowMeta: { fontSize: 13 },
   rowFooter: { flexDirection: 'row', alignItems: 'center', gap: Spacing.two, marginTop: 2 },
+  footer: { gap: Spacing.two, marginTop: Spacing.four },
 });

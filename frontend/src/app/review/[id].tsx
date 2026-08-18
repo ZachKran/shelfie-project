@@ -262,11 +262,23 @@ export default function ReviewScreen() {
         />
         {queue.length > 1 ? (
           <Button
-            label="Skip for now"
+            label="Skip this one"
             variant="secondary"
             onPress={() => setCursor((c) => (c + 1) % queue.length)}
           />
         ) : null}
+      </View>
+
+      {/* Leaving is a first-class action. Whatever is left stays in the queue
+          and is reachable again from Your scans. */}
+      <View style={styles.exit}>
+        <Text style={[styles.exitNote, { color: theme.textSecondary }]}>
+          {queue.length} {queue.length === 1 ? 'book is' : 'books are'} still waiting. They
+          will be here when you come back.
+        </Text>
+        <Button label="Finish later" variant="secondary" onPress={() => router.push('/scans')} />
+        <Button label="My library" variant="secondary" onPress={() => router.push('/library')} />
+        <Button label="Scan another shelf" variant="secondary" onPress={() => router.replace('/')} />
       </View>
     </ScrollView>
   );
@@ -328,6 +340,8 @@ const styles = StyleSheet.create({
   candidateBody: { flex: 1 },
   candidateTitle: { fontSize: 15, fontWeight: '600' },
   candidateMeta: { fontSize: 13 },
+  exit: { gap: Spacing.two, marginTop: Spacing.two, paddingTop: Spacing.three, borderTopWidth: 1, borderTopColor: Accent.border },
+  exitNote: { fontSize: 13, textAlign: 'center' },
   notice: { fontSize: 14 },
   inlineError: { color: Accent.danger, fontSize: 14 },
 });

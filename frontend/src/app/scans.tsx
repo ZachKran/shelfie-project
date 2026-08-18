@@ -41,7 +41,12 @@ export default function ScansScreen() {
       <EmptyState
         title="No scans yet"
         body="Photograph a shelf and it will show up here, along with anything still waiting to be reviewed."
-        action={<Button label="Scan a shelf" onPress={() => router.replace('/')} />}
+        action={
+          <>
+            <Button label="Scan a shelf" onPress={() => router.replace('/')} />
+            <Button label="My library" variant="secondary" onPress={() => router.push('/library')} />
+          </>
+        }
       />
     );
   }
@@ -89,6 +94,7 @@ export default function ScansScreen() {
       }}
       ListFooterComponent={
         <View style={styles.footer}>
+          <Button label="My library" variant="secondary" onPress={() => router.push('/library')} />
           <Button label="Scan a new shelf" variant="secondary" onPress={() => router.replace('/')} />
         </View>
       }
@@ -111,5 +117,5 @@ const styles = StyleSheet.create({
   body: { flex: 1, gap: 4 },
   title: { fontSize: 15, fontWeight: '600' },
   meta: { fontSize: 13 },
-  footer: { marginTop: Spacing.three },
+  footer: { marginTop: Spacing.three, gap: Spacing.two },
 });
