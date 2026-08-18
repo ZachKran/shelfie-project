@@ -22,7 +22,10 @@ logger = logging.getLogger(__name__)
 PROMPT = """You are reading the spines of books photographed on a shelf.
 
 You will be given {n} cropped images, numbered 0 to {last}. Each crop should
-contain exactly one book spine, rotated so the text reads left to right.
+contain exactly one book spine, rotated so the text reads left to right. Some
+spines are printed the other way up and will appear upside down; read those
+too. Neighbouring books are often visible at the edges of a crop — read only
+the book in the middle.
 
 For each crop, return the title and author exactly as printed. Do not guess,
 correct, complete, or translate them. If a crop is blurred, cropped badly,

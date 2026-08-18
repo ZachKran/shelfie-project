@@ -38,6 +38,10 @@ CONTAINMENT_RATIO = 0.80
 # Two boxes overlapping more than this are the same spine detected twice.
 DUPLICATE_IOU = 0.70
 
+# Never blow a crop up by more than this. Past it there is no more detail to
+# recover, only tokens to pay for.
+MAX_UPSCALE = 5.0
+
 
 @dataclass
 class Detection:
@@ -202,11 +206,26 @@ def crop_spine(image_path: str | Path, box: tuple[int, int, int, int], out_path:
         x2, y2 = min(img.width, x2 + pad), min(img.height, y2 + pad)
         crop = img.crop((x1, y1, x2, y2))
 
-        # Spine text runs bottom-to-top on most books. Rotating here rather
-        # than asking the model to cope with vertical text measurably improves
-        # the read and costs nothing.
+        # Spine text on North American editions runs top-to-bottom, so a
+        # counter-clockwise quarter turn puts it the right way up. Rotating
+        # here rather than asking the model to cope with vertical text is the
+        # single biggest quality lever in the pipeline: rotated the wrong way,
+        # reads came back as anagram-like garbage ("DAVID BALDACCI" was read as
+        # "BRIGGSAM"); rotated correctly they are clean.
         if crop.height > crop.width:
-            crop = crop.rotate(-90, expand=True)
+            crop = crop.rotate(90, expand=True)
+
+        # Detected spines are thin — often only 40-60px on the short edge,
+        # which is not enough pixels for the model to resolve the lettering.
+        # Upscaling costs tokens (billed by pixel area) but a crop the model
+        # cannot read costs the same and returns nothing.
+        target = settings.SHELFIE["CROP_MIN_HEIGHT"]
+        if 0 < crop.height < target:
+            scale = min(target / crop.height, MAX_UPSCALE)
+            crop = crop.resize(
+                (max(1, int(crop.width * scale)), max(1, int(crop.height * scale))),
+                Image.LANCZOS,
+            )
 
         out_path.parent.mkdir(parents=True, exist_ok=True)
         crop.save(out_path, "JPEG", quality=85)

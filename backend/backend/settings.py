@@ -168,7 +168,9 @@ SHELFIE = {
     "VLM_MAX_SPINES": int(os.getenv("VLM_MAX_SPINES", 60)),
     "DETECTOR_WEIGHTS": os.getenv("DETECTOR_WEIGHTS", "yolov8n.pt"),
     "DETECTOR_IMGSZ": int(os.getenv("DETECTOR_IMGSZ", 960)),
-    "DETECTOR_CONFIDENCE": float(os.getenv("DETECTOR_CONFIDENCE", 0.15)),
+    "DETECTOR_CONFIDENCE": float(os.getenv("DETECTOR_CONFIDENCE", 0.25)),
+    # Short-edge pixels a spine crop is upscaled to before it is sent.
+    "CROP_MIN_HEIGHT": int(os.getenv("CROP_MIN_HEIGHT", 220)),
     "MATCH_THRESHOLD": float(os.getenv("MATCH_THRESHOLD", 0.85)),
     "REVIEW_THRESHOLD": float(os.getenv("REVIEW_THRESHOLD", 0.55)),
 }
