@@ -12,6 +12,7 @@ import json
 import logging
 import re
 import time
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -180,13 +181,50 @@ def _to_reads(payload: dict, count: int, offset: int) -> list[SpineRead]:
 
 
 def read_spines(crop_paths: list[Path]) -> tuple[list[SpineRead], dict]:
-    """Read every crop, in batches. Returns reads plus total token usage."""
+    """Read every crop. Returns reads in spine order plus total token usage.
+
+    Batches run concurrently. Reads were 82% of end-to-end latency when they
+    ran one after another, and since each batch is an independent request the
+    only thing serialising them was the loop. Concurrency changes no token
+    counts, so the cost is identical; it is latency that drops.
+
+    Failures are already contained inside read_batch, which never raises, so a
+    slow or failing batch cannot take the others down with it.
+    """
     size = max(1, settings.SHELFIE["VLM_BATCH_SIZE"])
-    all_reads: list[SpineRead] = []
+    batches = [
+        (start, crop_paths[start : start + size])
+        for start in range(0, len(crop_paths), size)
+    ]
     totals = {"input_tokens": 0, "output_tokens": 0}
-    for start in range(0, len(crop_paths), size):
-        reads, usage = read_batch(crop_paths[start : start + size], offset=start)
-        all_reads.extend(reads)
-        totals["input_tokens"] += usage["input_tokens"]
-        totals["output_tokens"] += usage["output_tokens"]
+    if not batches:
+        return [], totals
+
+    workers = max(1, min(settings.SHELFIE["VLM_CONCURRENCY"], len(batches)))
+    results: dict[int, list[SpineRead]] = {}
+
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(read_batch, chunk, start): start for start, chunk in batches
+        }
+        for future in as_completed(futures):
+            start = futures[future]
+            try:
+                reads, usage = future.result()
+            except Exception as exc:  # pragma: no cover - read_batch swallows its own
+                logger.exception("batch at %s failed outright", start)
+                size_of = len(dict(batches)[start])
+                reads = [
+                    SpineRead(index=start + i, error=f"{type(exc).__name__}: {exc}")
+                    for i in range(size_of)
+                ]
+                usage = {"input_tokens": 0, "output_tokens": 0}
+            results[start] = reads
+            totals["input_tokens"] += usage["input_tokens"]
+            totals["output_tokens"] += usage["output_tokens"]
+
+    # Reassemble in spine order; completion order is not request order.
+    all_reads: list[SpineRead] = []
+    for start, _ in batches:
+        all_reads.extend(results[start])
     return all_reads, totals

@@ -163,6 +163,8 @@ SHELFIE = {
     "VLM_TIMEOUT_SECONDS": float(os.getenv("VLM_TIMEOUT_SECONDS", 30)),
     "VLM_MAX_RETRIES": int(os.getenv("VLM_MAX_RETRIES", 2)),
     "VLM_BATCH_SIZE": int(os.getenv("VLM_BATCH_SIZE", 6)),
+    # How many batches are in flight at once.
+    "VLM_CONCURRENCY": int(os.getenv("VLM_CONCURRENCY", 5)),
     # Hard ceiling on paid reads per photo. Spines past this are surfaced as
     # skipped rather than read, so a wall-sized shelf cannot run up a bill.
     "VLM_MAX_SPINES": int(os.getenv("VLM_MAX_SPINES", 200)),

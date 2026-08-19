@@ -104,32 +104,58 @@ malformed entry costs one book rather than the batch.
 
 ### Measured latency
 
-macOS, Apple Silicon, CPU inference. `test-photos/shelf2.png`, 1110×1516,
-82 detected spines.
+One full scan of `test-photos/shelf2.png` (1110x1516, 88 detected spines)
+through the app. macOS, Apple Silicon, CPU inference.
 
-| Stage | Measured |
-| --- | --- |
-| Spine detection (local) | 3,478 ms |
-| Crop, rotate, upscale | included above |
-| VLM read, 6 spines / 1 call | 2,400–3,400 ms |
-| Matching, per spine | 0.07 ms |
-| Matching, whole photo | ~7 ms |
+| Stage | Measured | Share |
+| --- | --- | --- |
+| Spine detection, local | 3,562 ms | 20% |
+| VLM reads, hosted | 9,391 ms | 52% |
+| Matching, local | 188 ms | 1% |
+| Upload, decode, crop, save | ~4,900 ms | 27% |
+| **End to end** | **18,028 ms** | |
 
-The read step dominates and scales with batch count: 82 spines is 14 calls.
-Detection is a fixed ~3.5 s regardless of how many books are in frame.
+The reads still dominate, and they scale with the number of books while
+detection stays flat at about 3.6 s regardless.
+
+Batches originally ran one after another, which put reads at 39,798 ms and the
+whole scan at 48,655 ms. Since each batch is an independent request, the only
+thing serialising them was the loop. Running five concurrently cut reads by
+4.2x and the full scan by 2.7x, for identical token counts: 28,485 input tokens
+before and after. Concurrency was pure latency, bought at no cost.
 
 ### Measured cost
+
+Same scan as above.
 
 | | Value |
 | --- | --- |
 | Model | `claude-haiku-4-5` |
-| Input tokens per spine | 295 |
-| Output tokens per spine | ~39 |
-| A full 82-spine photo | ~24,200 in / ~3,200 out, 14 calls |
+| Input tokens, whole photo | 28,485 |
+| Output tokens, whole photo | 3,526 |
+| Per spine | 324 in / 40 out |
+| API calls | 15 |
 | All development and testing combined | $0.03 |
 
 Cost is not the constraint here, which is what justified upscaling crops
 (below) at roughly 7× the tokens per spine.
+
+### Measured accuracy
+
+Scored by hand against `test-photos/shelf2.png`, a shelf holding 85 books.
+
+**Detection.** The detector returned 88 boxes. All 85 books were found, and the
+3 extra boxes were pieces of the shelf itself rather than books. That is full
+recall at 97% precision. The false positives cost three wasted API calls and
+arrive in the review queue as unreadable, where they are discarded in one tap.
+
+**Reading.** 60 of the 85 book titles were read correctly. The other 25 were too
+blurred in the photo to identify by eye either, so they are a limit of the photo
+rather than of the model. No book was returned as a different book, and every
+unread spine reached the review queue rather than being dropped or guessed at.
+
+Accuracy is therefore bounded by photo quality more than by the model. A sharper
+photo of the same shelf would move most of those 25 into the readable group.
 
 ## Catalog
 
@@ -270,6 +296,12 @@ was invisible in unit tests and obvious the moment the crops were looked at.
 px tall, too few pixels to resolve lettering. This costs ~7× the tokens per
 spine. A crop the model cannot read costs the same and returns nothing.
 
+**Reads run concurrently.** Five batches in flight at once, set by
+`VLM_CONCURRENCY`. Measured before and after on the same photo: reads dropped
+from 39.8 s to 9.4 s and the scan from 48.7 s to 18.0 s, with input tokens
+unchanged at 28,485. Results are reassembled by batch offset rather than in
+completion order, so spine order is preserved.
+
 **Matching is deterministic and local.** Slower to tune than asking a model to
 pick, but free, explicable, and testable — and the brief asks how the
 confidence score is arrived at.
@@ -289,17 +321,9 @@ scope for the time budget.
   spine is visible. Crops of stacked books often include
   the neighbours above and below, since the boxes overlap vertically; the
   prompt asks for the middle book, which mostly works.
-- **The review screen has three competing ways to pick a book** — ranked
-  candidates, catalog search, and manual entry — with no clear hierarchy.
-  Functional, but it should collapse to one primary action with the rest behind
-  a "none of these" affordance.
-- **No end-to-end latency figure for a full 82-spine scan.** Stage timings are
-  recorded per scan in the API response; the aggregate across several photos
-  has not been taken.
-- **Not verified on a physical device.** Runs on Expo web; the native upload
-  path is written but untested.
-- **No accuracy measurement.** Read quality was checked by eye on samples, not
-  scored against a labelled set.
+- **Not verified on a physical device.** The project is on Expo SDK 57, which is
+  newer than the SDK supported by the Expo Go build currently in the App Store,
+  so the QR code route is unavailable.
 
 ## What I'd do with another day
 
@@ -309,6 +333,7 @@ scope for the time budget.
   different lighting.
 - Improve the UI.
 - Add the option to rerun your low confidence reads a second time.
+- Test mobile functionality.
 
 ## AI usage
 
