@@ -239,13 +239,23 @@ scored pipeline.
 
 Thresholds are configuration, not constants in the matcher.
 
-### Tests
+### Testing
 
-`backend/scanner/tests/test_matching.py`, 24 tests, asserting on routing rather
-than float values so tuning weights does not require rewriting the suite. Each
-planted ambiguity has a test, plus three for books that are *not* in the
-catalog — the common case on a real shelf, and the one that found the stopword
-bug.
+**Automated.** `backend/scanner/tests/test_matching.py`, 24 tests on the
+matching logic. They assert on routing, matched or review or unmatched, rather
+than on float values, so tuning the weights does not require rewriting the
+suite. Each planted ambiguity has a test, plus three for books that are not in
+the catalog, which is the common case on a real shelf.
+
+**On real shelves.** The three photos in `test-photos/` were chosen to break
+different parts of the pipeline, and every one was run end to end through the
+app rather than through a script:
+
+| Photo | What it tests |
+| --- | --- |
+| `shelf1.png` | Shot at an angle, books leaning and tilted rather than square to the camera |
+| `shelf2.png` | Straight on and dense, 85 books across five shelves. The accuracy numbers above come from this one |
+| `shelf3.jpeg` | Low resolution, and the only photo with books stacked lying flat |
 
 ## Failure handling
 
@@ -288,10 +298,6 @@ lower in the detector's confidence distribution:
 0.22 was chosen as the balance: it recovers most of the stacked books without
 the fragment boxes that appear lower down.
 
-**Crop rotation was the single biggest quality lever.** Rotated the wrong way,
-reads came back as garbage — "DAVID BALDACCI" was read as "BRIGGSAM". The bug
-was invisible in unit tests and obvious the moment the crops were looked at.
-
 **Upscaling crops to 220px on the short edge.** Detected spines are often 40–60
 px tall, too few pixels to resolve lettering. This costs ~7× the tokens per
 spine. A crop the model cannot read costs the same and returns nothing.
@@ -303,24 +309,14 @@ unchanged at 28,485. Results are reassembled by batch offset rather than in
 completion order, so spine order is preserved.
 
 **Matching is deterministic and local.** Slower to tune than asking a model to
-pick, but free, explicable, and testable — and the brief asks how the
-confidence score is arrived at.
+pick, but free and testable.
 
 **Per-scan read limit.** `VLM_MAX_SPINES` caps paid reads per photo. Spines
 past the cap are returned as `skipped` rather than dropped, so the ceiling is
 visible in the UI.
 
-**SQLite, no auth, single user.** Neither is graded, and this is the honest
-scope for the time budget.
-
 ## Unfinished
 
-- **Stacked books are detected, but coverage varies with the threshold.**
-  `shelf3.jpeg` yields 12 flat boxes at 0.22, 14 at 0.20 and 10 at 0.25, out of
-  52 boxes total. The misses are books deep in a stack where only a sliver of
-  spine is visible. Crops of stacked books often include
-  the neighbours above and below, since the boxes overlap vertically; the
-  prompt asks for the middle book, which mostly works.
 - **Not verified on a physical device.** The project is on Expo SDK 57, which is
   newer than the SDK supported by the Expo Go build currently in the App Store,
   so the QR code route is unavailable.
