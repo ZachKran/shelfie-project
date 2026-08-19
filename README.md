@@ -303,14 +303,12 @@ scope for the time budget.
 
 ## What I'd do with another day
 
-- Score read accuracy against a hand-labelled shelf, and tune thresholds
-  against that rather than against intuition.
-- Try an open-vocabulary detector and measure the recall gain against the
-  latency cost, particularly for stacked books.
-- Send low-confidence reads back to the VLM with the top catalog candidates as
-  context — cheap, and it would resolve edition-level ambiguity the string
-  matcher cannot.
-- Deduplicate against the existing library at scan time rather than at confirm.
+- Add duplicate detection, so a book already in the library is flagged at scan
+  time instead of being added twice.
+- Test against a wider variety of bookshelf photos, at different angles and in
+  different lighting.
+- Improve the UI.
+- Add the option to rerun your low confidence reads a second time.
 
 ## AI usage
 
